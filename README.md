@@ -9,13 +9,15 @@ with the solver adapted from the independent replication
 
 ## How it works
 
-1. A propeller plane hums. As it passes you, the hum slides down in pitch. The shape of the slide gives
-   the plane's speed, how close it came and the second it was closest.
+1. A propeller plane hums (blade-pass tones of about 50-450 Hz), and a jet's fan whines (tone stacks of about
+   1.4-7 kHz). As it passes you, the tone slides down in pitch. The shape of the slide gives the plane's
+   speed, how close it came and the second it was closest.
 2. Every transponder-equipped plane broadcasts where it is (ADS-B). The solver polls
    [adsb.lol](https://www.adsb.lol/) around the visitor's IP location.
 3. For each low aircraft, it predicts the curve that every spot on the ground would have heard. It uses
    emission-time Doppler and terrain from Copernicus GLO-90, then measures the energy on that curve in the
-   visitor's whitened spectrogram.
+   visitor's whitened spectrogram: propellers and helicopters in a low band with 1 Hz resolution, jets in a
+   high band with short frames, because a close jet's tone sweeps fast. Passes heard in either band combine.
 4. One pass cannot say which plane made it. Any plane at about the same speed has a strip of ground where it
    would have sounded the same, and each one leaves a mirror image across its own path. So each heard pass
    becomes an event with rival explanations. The answer is the one combination of planes, one per event,
@@ -23,7 +25,7 @@ with the solver adapted from the independent replication
 5. If no plane comes close, the mains hum (50 Hz or 60 Hz) still names the grid. That is a nice VPN tell, but
    the guess stays where the IP points.
 
-The browser streams 5 s chunks: 8 kHz mono, with echo cancellation, noise suppression and auto-gain turned
+The browser streams 5 s chunks: 16 kHz mono, with echo cancellation, noise suppression and auto-gain turned
 off, each stamped with the server-corrected UTC of its first sample. The solver updates its guess after
 every chunk and stops early once two passes agree.
 
@@ -46,7 +48,7 @@ hear no usable pass. `/results` keeps score against the IP address.
 | Path | What |
 |---|---|
 | `app/controllers/hunts_controller.rb` | Starts a hunt, relays chunks to the solver, scores the pin |
-| `app/javascript/lib/mic_capture.js` | AudioWorklet capture, resampling to 8 kHz, UTC stamping |
+| `app/javascript/lib/mic_capture.js` | AudioWorklet capture, resampling to 16 kHz, UTC stamping |
 | `app/javascript/lib/spectrogram.js`, `hunt_map.js` | Live spectrogram with predicted curves; Leaflet map |
 | `app/services/solver_client.rb`, `geo_lookup.rb`, `geo_database.rb` | Sidecar client; DB-IP City Lite IP prior and its monthly download |
 | `sidecar/app/session.py` | One hunt: events, rivals, pair search, early stop |
@@ -67,7 +69,7 @@ bin/rails geo:fetch   # optional: the IP database, ~130 MB
 SOLVER_KEY=dev ME_DEV_PRIOR="41.8268,-71.4025,30" bin/rails server
 ```
 
-With `SOLVER_DEV=1`, "play a test flight" puts a fake PC-12 into the live traffic and plays the sound a
+With `SOLVER_DEV=1`, "play a test flight" puts a fake PC-12 ("play a test jet": an A320 on approach) into the live traffic and plays the sound a
 listener at a random nearby spot would hear through your speakers. The mic picks it up, so the whole path is
 exercised. One test flight is one event, so expect two mirror-image candidates (more if a real plane at a
 similar speed passed at the same moment).

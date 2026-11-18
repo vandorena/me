@@ -12,8 +12,8 @@
 
   <section data-hunt-target="intro">
     <h2>how</h2>
-    <p>A propeller plane hums. As it passes you, the hum slides down in pitch (the Doppler effect), and the shape
-      of that slide gives away its speed, how close it came, and the second it was closest. Every plane broadcasts
+    <p>A propeller plane hums, and a jet's fan whines. As it passes you, that tone slides down in pitch (the
+      Doppler effect), and the shape of that slide gives away its speed, how close it came, and the second it was closest. Every plane broadcasts
       where it is (ADS-B), so we look for the place on the ground where a real flight, right now, would have
       sounded exactly like what your microphone picked up. Two planes on different paths pin it down.</p>
     <p>Most of the time no plane comes close enough. Then all we have is your network's rough location and the
@@ -43,7 +43,7 @@
       <figure class="spectrogram">
         <canvas data-hunt-target="spectrogram"></canvas>
         <canvas class="overlay" data-hunt-target="overlay"></canvas>
-        <figcaption class="muted small">your microphone, 40&ndash;1000 Hz, whitened so faint tones show.
+        <figcaption class="muted small">your microphone, 40&ndash;8000 Hz (propellers low, jets high), whitened so faint tones show.
           Dashed: the curve a plane we matched should have made.</figcaption>
       </figure>
       <div class="map" data-hunt-target="map"></div>

@@ -8,7 +8,8 @@ The visitor grants only the microphone. A Python solver (`sidecar/`) matches air
 ## Key facts learned
 - **One pass is always ambiguous.** Any aircraft within about 10% of the real one's speed fits some spot on the ground, and each spot has a mirror image across the flight path. A confident fix needs two events whose candidate spots agree (`session.py: _find_events`, `_decide`).
 - **Speed separation comes from the ridge contrast in `spectro.whiten`.** Planes more than about 25% off in speed drop out; within about 10% they stay rivals.
-- **Expect mostly IP-only results.** Close prop passes are rare in a few minutes of listening.
+- **Expect mostly IP-only results.** Close passes are rare in a few minutes of listening.
+- **Jets are in scope (branch `audio-jets`).** Capture is 16 kHz. `spectro.LOW` (45-1400 Hz) scores props and helicopters; `spectro.HIGH` (500-7500 Hz, 0.125 s hop) scores jets' fan tones. The heard thresholds are the same in both bands and were tuned only on synthetic jets; real jet roar may need `session.HEARD["high"]` raised. Raw audio is no longer kept beyond a 20 s tail; the session holds spectrogram rows.
 
 ## Next steps
 1. Test with a real mic in Chrome, Safari and Firefox. Check that `track.getSettings()` shows noise suppression actually off. Try it near a window under general-aviation traffic.
@@ -17,6 +18,7 @@ The visitor grants only the microphone. A Python solver (`sidecar/`) matches air
    - the IP database (DB-IP City Lite) downloads itself on boot; check the log for `geo: fetched`
 3. Measure solver tick time on the server hardware. On an M-series Mac a tick with 5 aircraft takes about 2.4 s. The budget is under 5 s per chunk.
 4. Possible improvements:
+   - negative evidence: spots where ADS-B says a loud, close plane passed but nothing was heard become less likely
    - ENF (mains-frequency) matching against live grid feeds
    - backfilling ADS-B history so passes early in a session can be scored
    - a geoid correction (the DEM uses EGM2008 heights; aircraft altitude is GNSS ellipsoid height)
