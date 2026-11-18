@@ -85,7 +85,7 @@ class HuntsController < ApplicationController
   def test_flight
     return head(:not_found) unless Rails.configuration.x.test_flights
 
-    render json: solver.test_flight(require_hunt)
+    render json: solver.test_flight(require_hunt, params[:kind] == "jet" ? "jet" : "prop")
   end
 
   private

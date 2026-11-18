@@ -76,4 +76,7 @@ def test_dev_test_flight_returns_audio_and_injects_the_aircraft():
     assert body["start_utc_ms"] > time.time() * 1000
     s = server.sessions[token]
     assert any(a.callsign == "TEST01" for a in s.tile.snapshot())
+    r = client.post(f"/sessions/{token}/test_flight?kind=jet", headers=H)
+    assert r.json()["callsign"] == "TESTJET"
+    assert any(a.callsign == "TESTJET" and a.kind == "jet" for a in s.tile.snapshot())
     client.delete(f"/sessions/{token}", headers=H)

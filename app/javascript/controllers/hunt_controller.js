@@ -57,7 +57,7 @@ export default class extends Controller {
     this.introTarget.hidden = true
     this.map.invalidate()
     this.map.showPrior(hunt.prior)
-    this.testFlightTarget.hidden = !hunt.test_flights
+    this.testFlightTargets.forEach((button) => { button.hidden = !hunt.test_flights })
 
     this.mic = new MicCapture({
       clockOffsetMs: hunt.server_time_ms - (sentAt + receivedAt) / 2,
@@ -169,7 +169,7 @@ export default class extends Controller {
     const sent = this.mic ? this.mic.sent / RATE : 0
     this.teardown()
     this.stopTarget.disabled = true
-    this.testFlightTarget.hidden = true
+    this.testFlightTargets.forEach((button) => { button.hidden = true })
     this.statusTarget.textContent = "thinking about what we heard"
     for (let i = 0; i < FINAL_POLLS && (this.sending || (this.snapshot?.listened_s || 0) < sent - 1); i++) {
       await sleep(1000)
@@ -240,18 +240,18 @@ export default class extends Controller {
     this.verdictTarget.textContent += " (You didn't say where you are, so nothing was saved.)"
   }
 
-  async testFlight() {
-    this.testFlightTarget.disabled = true
-    const response = await fetch(`${this.urlValue}/test_flight`, { method: "POST", headers: this.headers() }).catch(() => null)
+  async testFlight({ currentTarget: button, params: { kind } }) {
+    button.disabled = true
+    const response = await fetch(`${this.urlValue}/test_flight?kind=${kind}`, { method: "POST", headers: this.headers() }).catch(() => null)
     if (!response?.ok) {
-      this.testFlightTarget.disabled = false
+      button.disabled = false
       return this.showError("The solver isn't running with SOLVER_DEV=1, so there are no test flights.")
     }
     const flight = await response.json()
     const bytes = Uint8Array.from(atob(flight.pcm16), (c) => c.charCodeAt(0))
     this.mic.playAt(new Int16Array(bytes.buffer), flight.sample_rate, flight.start_utc_ms)
     this.answer = flight.answer
-    this.testFlightTarget.textContent = `${flight.callsign} inbound, turn your volume up`
+    button.textContent = `${flight.callsign} inbound, turn your volume up`
   }
 
   showMic() {

@@ -47,8 +47,8 @@ class SolverClient
     nil
   end
 
-  def test_flight(token)
-    call(Net::HTTP::Post.new("/sessions/#{escape(token)}/test_flight"))
+  def test_flight(token, kind = "prop")
+    call(Net::HTTP::Post.new("/sessions/#{escape(token)}/test_flight?kind=#{escape(kind)}"))
   end
 
   private

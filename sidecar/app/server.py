@@ -5,7 +5,7 @@
   GET    /sessions/{token}             -> snapshot
   GET    /sessions/{token}/result      -> what Rails needs to score the visitor's pin
   DELETE /sessions/{token}
-  POST   /sessions/{token}/test_flight (SOLVER_DEV=1 only) a synthetic aircraft + the audio to play"""
+  POST   /sessions/{token}/test_flight?kind=prop|jet (SOLVER_DEV=1 only) a synthetic aircraft + its audio"""
 
 from __future__ import annotations
 
@@ -119,9 +119,9 @@ def stop(token: str, x_solver_key: str | None = Header(None)):
 
 
 @app.post("/sessions/{token}/test_flight")
-def test_flight(token: str, x_solver_key: str | None = Header(None)):
-    """Dev only: puts a fake PC-12 into this session's tile on a line that passes a random spot near the
-    prior, and returns the audio a listener there would hear. The browser plays it through its speakers
+def test_flight(token: str, kind: str = "prop", x_solver_key: str | None = Header(None)):
+    """Dev only: puts a fake PC-12 (or, with kind=jet, an A320 on approach) into this session's tile on a
+    line that passes a random spot near the prior, and returns the audio a listener there would hear. The browser plays it through its speakers
     and records it back, so the whole mic -> solver path is exercised with a known answer."""
     check_key(x_solver_key)
     if not DEV:
@@ -133,17 +133,23 @@ def test_flight(token: str, x_solver_key: str | None = Header(None)):
     spot = (float(r * np.cos(ang) * rng.uniform(0.2, 1)), float(r * np.sin(ang) * rng.uniform(0.2, 1)))
     start_at = time.time() + 3
     t_cpa = start_at + 45
-    flight = dict(heading_deg=float(rng.uniform(0, 360)), speed_ms=80.0,
-                  alt_m=float(s._ground(np.array([spot]))[0] + 500), t_cpa=t_cpa,
-                  offset_m=float(rng.uniform(600, 2000)), duration_s=400)
+    is_jet = kind == "jet"
+    ground = float(s._ground(np.array([spot]))[0])
+    if is_jet:  # ~140 kt on approach, low and close: where jets are heard
+        flight = dict(speed_ms=72.0, alt_m=ground + float(rng.uniform(300, 600)), offset_m=float(rng.uniform(500, 1500)))
+        ident, sound = dict(callsign="TESTJET", type_code="A320", kind="jet"), synth.JET
+    else:
+        flight = dict(speed_ms=80.0, alt_m=ground + 500, offset_m=float(rng.uniform(600, 2000)))
+        ident, sound = dict(callsign="TEST01", type_code="PC12", kind="prop"), {}
+    flight.update(heading_deg=float(rng.uniform(0, 360)), t_cpa=t_cpa, duration_s=400)
     hex_code = f"t{secrets.token_hex(2)}"
-    synth.add_to_tile(s.tile, hex_code, synth.straight_flight(s.frame, spot, **flight))
+    synth.add_to_tile(s.tile, hex_code, synth.straight_flight(s.frame, spot, **flight), **ident)
     track = synth.track_from_samples(synth.straight_flight(s.frame, spot, jitter_m=0, **flight), s.frame)
-    listener = np.array([spot[0], spot[1], s._ground(np.array([spot]))[0] + MIC_AGL])
-    audio = synth.render(track, listener, start_at, 100.0, snr_db=6.0, rolloff_hz=0, level=0.5)
+    listener = np.array([spot[0], spot[1], ground + MIC_AGL])
+    audio = synth.render(track, listener, start_at, 100.0, snr_db=6.0, rolloff_hz=0, level=0.5, **sound)
     lat, lon = s.frame.to_latlon(spot[0], spot[1])
     return {"start_utc_ms": round(start_at * 1000), "sample_rate": FS,
-            "pcm16": base64.b64encode(synth.to_pcm16(audio)).decode(), "callsign": "TEST01",
+            "pcm16": base64.b64encode(synth.to_pcm16(audio)).decode(), "callsign": ident["callsign"],
             "answer": {"lat": float(lat), "lon": float(lon)}}
 
 

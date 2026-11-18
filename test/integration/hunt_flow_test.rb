@@ -159,6 +159,9 @@ class HuntFlowTest < ActionDispatch::IntegrationTest
     post test_flight_hunt_path
 
     assert_response :success
-    assert_equal [ :test_flight, "tok-1" ], @solver.calls.last
+    assert_equal [ :test_flight, "tok-1", "prop" ], @solver.calls.last
+
+    post test_flight_hunt_path(kind: "jet")
+    assert_equal [ :test_flight, "tok-1", "jet" ], @solver.calls.last
   end
 end

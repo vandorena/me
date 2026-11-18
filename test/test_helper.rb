@@ -33,7 +33,7 @@ class FakeSolver
   def status(token) = record(:status, token) && snapshot
   def result(token) = record(:result, token) && run
   def stop(token) = record(:stop, token) && { "ok" => true }
-  def test_flight(token) = record(:test_flight, token) && { "pcm16" => "", "start_utc_ms" => 0 }
+  def test_flight(token, kind) = record(:test_flight, token, kind) && { "pcm16" => "", "start_utc_ms" => 0 }
 
   private
 

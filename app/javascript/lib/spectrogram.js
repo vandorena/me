@@ -1,7 +1,8 @@
-// A scrolling spectrogram of the band where propeller hum lives, whitened per frequency so a curve far
-// below hearing still shows, with the solver's predicted Doppler curves drawn over it by UTC time.
+// A scrolling spectrogram from propeller hum (~50-450 Hz) up to jets' fan tones (~1.4-7 kHz), whitened
+// per frequency so a curve far below hearing still shows, with the solver's predicted Doppler curves
+// drawn over it by UTC time.
 const FMIN = 40
-const FMAX = 1000
+const FMAX = 8000
 const COLUMN_MS = 200
 const BACKGROUND_ALPHA = 0.02 // how fast each frequency's background level adapts
 
@@ -78,7 +79,7 @@ export class Spectrogram {
     this.draw()
   }
 
-  // curves: [{ callsign, harmonics: [1, 2, 3], points: [[utcMs, hz], ...] }]
+  // curves: [{ callsign, band: "low" | "high", harmonics: [1, 2, 3], points: [[utcMs, hz], ...] }]
   setCurves(curves) {
     this.curves = curves || []
     this.draw()
@@ -114,8 +115,9 @@ export class Spectrogram {
     }
     octx.setLineDash([])
     octx.fillStyle = "#8a8a8a"
-    for (const f of [50, 100, 200, 500, 1000]) {
-      octx.fillText(`${f} Hz`, 4 * ratio, Math.min(overlay.height - 4, this.y(f) - 2))
+    for (const f of [50, 100, 200, 500, 1000, 2000, 5000]) {
+      const label = f >= 1000 ? `${f / 1000} kHz` : `${f} Hz`
+      octx.fillText(label, 4 * ratio, Math.min(overlay.height - 4, this.y(f) - 2))
     }
   }
 }
