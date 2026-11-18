@@ -116,14 +116,14 @@ class HuntsController < ApplicationController
   end
 
   # Two very different failures: a server without the IP database (every visitor fails), or one
-  # visitor whose address has no location. A private address usually means a proxy in front of Rails is
-  # not passing the visitor's address on.
+  # visitor whose address has no location. In production a private address usually means a proxy in
+  # front of Rails is not passing the visitor's address on; in development it is just localhost.
   def unplaceable
     reason =
       if !GeoLookup.instance.available?
         "no_geo_db"
       elsif private_address?(request.remote_ip)
-        "private_address"
+        Rails.configuration.x.localhost_hint ? "no_dev_prior" : "private_address"
       else
         "unplaceable"
       end

@@ -51,8 +51,13 @@ class HuntFlowTest < ActionDispatch::IntegrationTest
 
     GeoLookup.instance = Struct.new(:available?) { def call(_ip) = nil }.new(true)
     post hunt_path, params: { cap_s: 180 }, as: :json
+    assert_equal "no_dev_prior", response.parsed_body["error"] # localhost outside production
+
+    Rails.configuration.x.localhost_hint = false # as in production
+    post hunt_path, params: { cap_s: 180 }, as: :json
     assert_equal "private_address", response.parsed_body["error"]
   ensure
+    Rails.configuration.x.localhost_hint = true
     GeoLookup.instance = nil
   end
 

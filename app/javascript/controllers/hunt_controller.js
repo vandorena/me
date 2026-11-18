@@ -84,6 +84,7 @@ export default class extends Controller {
     const reasons = {
       no_geo_db: "This server has no IP location database, so it can't place anyone. That's our fault, not yours.",
       private_address: "This server sees a private address instead of yours (a proxy setting on our side), so it can't place you.",
+      no_dev_prior: "Localhost has no location. Restart Rails with ME_DEV_PRIOR=\"lat,lon,radius_km\" (see the README) to stand in for your IP.",
       unplaceable: "We can't place your network at all (a VPN or a private address?), so there is nowhere for the planes to narrow down."
     }
     const error = response ? await response.json().then(body => body.error, () => null) : null
