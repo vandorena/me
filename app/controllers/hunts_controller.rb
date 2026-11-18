@@ -4,8 +4,9 @@
 #
 # The solver's token sits in the cookie session. Nothing else about the hunt is kept on this side.
 class HuntsController < ApplicationController
-  MIN_CAP_S = 60
-  MAX_CAP_S = 900
+  # A hunt runs until the visitor presses stop (or we are sure). This only ends one left open; it is not
+  # shown to the visitor.
+  CAP_S = 5 * 3600
   MAX_CHUNK_BYTES = 2 * 16_000 * 10 # 10 s of 16 kHz int16
   MIN_RADIUS_KM = 25
 
@@ -24,10 +25,10 @@ class HuntsController < ApplicationController
     solver.stop(session[:hunt]) if session[:hunt]
     started = Time.current
     session[:hunt] = solver.start(lat: prior[:lat], lon: prior[:lon], radius_km: prior[:radius_km],
-                                  cap_s: cap_s, country_code: prior[:country_code])
+                                  cap_s: CAP_S, country_code: prior[:country_code])
     render json: {
       server_time_ms: (started.to_f * 1000).round,
-      cap_s: cap_s,
+      cap_s: CAP_S,
       prior: prior.slice(:lat, :lon, :radius_km).merge(place: prior[:place]),
       test_flights: Rails.configuration.x.test_flights
     }
@@ -101,10 +102,6 @@ class HuntsController < ApplicationController
   def finish(token)
     solver.stop(token)
     session.delete(:hunt)
-  end
-
-  def cap_s
-    params[:cap_s].to_i.clamp(MIN_CAP_S, MAX_CAP_S)
   end
 
   def ip_prior

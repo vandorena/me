@@ -27,7 +27,9 @@ with the solver adapted from the independent replication
 
 The browser streams 5 s chunks: 16 kHz mono, with echo cancellation, noise suppression and auto-gain turned
 off, each stamped with the server-corrected UTC of its first sample. The solver updates its guess after
-every chunk and stops early once two passes agree.
+every chunk. It listens until the visitor presses stop, and stops early once two passes agree. A hunt left
+open ends after 5 hours (not shown on the page). The solver keeps only the last 20 minutes of spectrogram;
+a pass heard before that is frozen, so it still combines with later ones.
 
 Honest odds: in the reference repo's blind webcam runs this method mostly missed, and a laptop mic indoors is
 worse than a webcam outside. Knowing each sample's time to well under a second helps a lot, but most sessions

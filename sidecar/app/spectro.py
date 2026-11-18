@@ -7,7 +7,9 @@ Each full STFT frame is computed once; whitening is redone over the whole sessio
 thousand frames by a few hundred bins, so it is cheap).
 
 The raw audio is not kept: AudioBuffer holds only what the next frames still need plus a short tail for
-the mains-hum check, so the session's memory holds spectrogram rows, not a recording."""
+the mains-hum check, so the session's memory holds spectrogram rows, not a recording. Rows are kept
+only for the last HISTORY_S, so a hunt left open for hours costs no more per tick than a 20-minute one;
+the session freezes passes heard before that (see Session._freeze)."""
 
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ FS = 16000
 RIDGE_SIDE = 3  # bins either side subtracted by the ridge contrast
 MAX_GAP_S = 30.0
 TAIL_S = 20.0  # the mains check's window
+HISTORY_S = 20 * 60.0  # spectrogram rows older than this are dropped
 
 
 @dataclass(frozen=True)
@@ -118,15 +121,24 @@ class Spectrogram:
                 j = int(np.searchsorted(flin, f) - 1)
                 self.groups.append(("lerp", (j, (f - flin[j]) / (flin[j + 1] - flin[j]))))
         self.rows: list[np.ndarray] = []
+        self.first = 0  # frame index of rows[0]
         self.t0: float | None = None
 
     def frame_times(self) -> np.ndarray:
         """UTC of each frame's centre."""
-        return self.t0 + (np.arange(len(self.rows)) * self.band.hop + self.band.nperseg / 2) / FS
+        return self.t0 + ((self.first + np.arange(len(self.rows))) * self.band.hop + self.band.nperseg / 2) / FS
 
     def next_sample(self) -> int:
         """The first sample the next frame needs."""
-        return len(self.rows) * self.band.hop
+        return (self.first + len(self.rows)) * self.band.hop
+
+    def drop_before(self, t_utc: float) -> None:
+        if not self.rows:
+            return
+        k = int(np.searchsorted(self.frame_times(), t_utc))
+        if k:
+            del self.rows[:k]
+            self.first += k
 
     def update(self, audio: AudioBuffer) -> None:
         """Computes every frame the buffer now covers."""
@@ -135,7 +147,7 @@ class Spectrogram:
             return
         self.t0 = audio.t0
         n_total = 1 + (audio.total - b.nperseg) // b.hop if audio.total >= b.nperseg else 0
-        start = len(self.rows)
+        start = self.first + len(self.rows)
         if n_total <= start:
             return
         a = start * b.hop
@@ -172,8 +184,10 @@ class Recording:
 
     def append(self, pcm: np.ndarray, t_utc: float) -> None:
         self.audio.append(pcm, t_utc)
+        horizon = self.audio.t0 + self.audio.duration - HISTORY_S
         for spec in self.specs.values():
             spec.update(self.audio)
+            spec.drop_before(horizon)
         self.audio.trim(min(spec.next_sample() for spec in self.specs.values()))
 
     def whitened(self) -> dict[str, tuple[np.ndarray, np.ndarray]]:

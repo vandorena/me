@@ -61,7 +61,7 @@ class Start(BaseModel):
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
     radius_km: float = Field(gt=0, le=20000)
-    cap_s: float = Field(ge=30, le=900)
+    cap_s: float = Field(ge=30, le=5 * 3600)
     country_code: str | None = None
 
 

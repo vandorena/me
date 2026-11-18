@@ -9,6 +9,7 @@ The visitor grants only the microphone. A Python solver (`sidecar/`) matches air
 - **One pass is always ambiguous.** Any aircraft within about 10% of the real one's speed fits some spot on the ground, and each spot has a mirror image across the flight path. A confident fix needs two events whose candidate spots agree (`session.py: _find_events`, `_decide`).
 - **Speed separation comes from the ridge contrast in `spectro.whiten`.** Planes more than about 25% off in speed drop out; within about 10% they stay rivals.
 - **Expect mostly IP-only results.** Close passes are rare in a few minutes of listening.
+- **No visitor-chosen length.** A hunt runs until the visitor presses stop or two passes agree; `HuntsController::CAP_S` (5 h, hidden) ends one left open. The solver keeps 20 min of spectrogram (`spectro.HISTORY_S`) and freezes older passes (`Session._freeze`), so memory and tick time stay flat however long it runs.
 - **Jets are in scope (branch `audio-jets`).** Capture is 16 kHz. `spectro.LOW` (45-1400 Hz) scores props and helicopters; `spectro.HIGH` (500-7500 Hz, 0.125 s hop) scores jets' fan tones. The heard thresholds are the same in both bands and were tuned only on synthetic jets; real jet roar may need `session.HEARD["high"]` raised. Raw audio is no longer kept beyond a 20 s tail; the session holds spectrogram rows.
 
 ## Next steps

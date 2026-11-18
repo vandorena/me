@@ -120,8 +120,9 @@ def score_track(track: Track, points: np.ndarray, W: np.ndarray, frame_t: np.nda
     count = valid.sum(1)
     expected = 2 * hw[idx] / band.frame_s
     r = np.where(valid, rho, np.nan)
-    with np.errstate(all="ignore"):
-        swing = np.nanmax(r, 1) - np.nanmin(r, 1)
+    swing = np.zeros(len(r))
+    has = count > 0
+    swing[has] = np.nanmax(r[has], 1) - np.nanmin(r[has], 1)
     keep = (count >= min_frames) & (count / expected >= MIN_COVERAGE) & (swing >= MIN_SWING)
     if not keep.any():
         return out

@@ -25,7 +25,7 @@ from . import doppler, mains
 from .adsb import Tile, Track, TilePoller, build_tracks
 from .dem import Dem
 from .geo import Frame, haversine_m
-from .spectro import Band, Recording
+from .spectro import HISTORY_S, Band, Recording
 
 COARSE_M = 400.0
 FINE_M = 100.0
@@ -42,7 +42,10 @@ HEARD = {  # band: (min score, min ratio over the reversed audio, min z over the
     "low": (0.45, 2.0, 4.0),
     "high": (0.45, 2.0, 4.0),
 }
-MAX_EVENTS = 4
+MAX_EVENTS = 4  # events found per tick, and events combined into one answer
+# The spectrogram keeps only HISTORY_S of rows. A pass that ended this long ago is frozen (its maps and a
+# crop of the spectrogram around it are kept) before it slides out, so it still combines with later ones.
+FREEZE_AFTER_S = HISTORY_S / 2
 RIVAL_FRACTION = 0.8  # another aircraft explaining an event this well is a live alternative
 MAX_RIVALS = 6
 CONFIDENT_RUNNER_UP = 0.8  # runner-up peak (>= 1.5 km away) must score below this fraction of the best
@@ -70,6 +73,7 @@ class Session:
         self.closed = False
         self.final = False
         self.lattice: np.ndarray | None = None  # (G, 3) coarse points inside the prior, z = ground + mic
+        self.frozen: list[list[tuple[Track, dict]]] = []  # events older than the spectrogram's window
         self.state = {"tier": "ip", "status": "waiting for audio", "listened_s": 0.0, "done": False,
                       "guess": None, "confidence": 0.0, "ambiguous": False, "aircraft": [], "heard": [], "events": [],
                       "curves": [], "heatmap": None, "mains": None, "mains_expected": mains.expected_hz(country_code),
@@ -171,7 +175,7 @@ class Session:
             results = [r for r in results if r is not None]
             if results:
                 scores[track.hex] = (track, max(results, key=lambda r: r["peak"]))
-        events = self._find_events(scores, bands, span)
+        events = self._strongest(self.frozen + self._freeze(self._find_events(scores, bands, span), span))
         out["aircraft"] = sorted((r["summary"] for _, r in scores.values()), key=lambda a: -a["peak"])[:12]
         out.update(self._decide(list(scores.values()), events, out["mains"], listened))
         return out
@@ -186,8 +190,23 @@ class Session:
         same tone: a rival hypothesis for this event. Whoever keeps its score may be a later event.
         Each band has its own copy of the spectrogram: a jet cannot explain a propeller's tone."""
         Ws = {name: W.copy() for name, (W, _) in bands.items()}
+        for event in self.frozen:  # already counted: keep their tones from being found again
+            lead = event[0][1]
+            point, f0 = lead["erase"]
+            doppler.erase_curve(Ws[lead["band"].name], event[0][0], point, f0, bands[lead["band"].name][1],
+                                lead["band"])
         events: list[list[tuple[Track, dict]]] = []
+        # A plane frozen for a pass is not heard again for that pass (a circling plane can pass again).
+        frozen_at = {}
+        for event in self.frozen:
+            for t, r in event:
+                times = self._pass_times(r)
+                frozen_at.setdefault(t.hex, []).append((times.min() - 60, times.max() + 60))
         done: set[str] = set()
+        for hex_code, (_, r) in scores.items():
+            times = self._pass_times(r)
+            if len(times) and any(lo <= times.max() and times.min() <= hi for lo, hi in frozen_at.get(hex_code, ())):
+                done.add(hex_code)
         for _ in range(MAX_EVENTS):
             cands = sorted(((t, r) for t, r in scores.values()
                             if t.hex not in done and r["peak"] >= HEARD[r["band"].name][0]
@@ -208,12 +227,13 @@ class Session:
             done.add(track.hex)
             if lead["peak"] < HEARD[band.name][1] * max(reverse_peak, 0.05):
                 continue
-            k = len(events)
+            k = len(self.frozen) + len(events)
             lead["W"] = W.copy()  # what it was judged on: later steps must not see other events' tones
             lead["summary"].update(heard=True, event=k, rival=False)
             event = [(track, lead)]
             i = int(np.nanargmax(lead["score"]))
-            doppler.erase_curve(W, track, self.lattice[lead["idx"][i]], float(lead["f0"][i]), ft, band)
+            lead["erase"] = (self.lattice[lead["idx"][i]].copy(), float(lead["f0"][i]))
+            doppler.erase_curve(W, track, *lead["erase"], ft, band)
             bar = RIVAL_FRACTION * lead.get("fine", lead["peak"])
             for hex_code, (t, r) in list(scores.items()):
                 if hex_code in done or r["band"] is not band or r["peak"] < HEARD[band.name][0]:
@@ -229,6 +249,38 @@ class Session:
                     scores[hex_code] = (t, again)
             events.append(sorted(event, key=lambda h: -h[1].get("fine", h[1]["peak"]))[:MAX_RIVALS])
         return events
+
+    def _freeze(self, events: list, span: np.ndarray) -> list:
+        """Moves events whose pass ended FREEZE_AFTER_S ago into self.frozen, keeping only the part of the
+        spectrogram around each hypothesis's pass. Returns the events still live."""
+        live = []
+        for event in events:
+            lead = event[0][1]
+            pad = 1.5 * lead["band"].max_half_window_s + 5.0
+            if self._pass_times(lead).max() + pad >= span[1] - FREEZE_AFTER_S:
+                live.append(event)
+                continue
+            for _, r in event:
+                t = self._pass_times(r)
+                keep = (r["ft"] >= t.min() - pad) & (r["ft"] <= t.max() + pad)
+                r["W"], r["ft"] = r["W"][keep], r["ft"][keep]
+            self.frozen.append(event)
+        return live
+
+    @staticmethod
+    def _pass_times(r: dict) -> np.ndarray:
+        """Closest-approach times at the spots that fit this hypothesis (the ones its map counts)."""
+        good = np.nan_to_num(r["score"], nan=-np.inf) >= r["med"] + 0.5 * (r["peak"] - r["med"])
+        return r["t_cpa"][good]
+
+    @staticmethod
+    def _strongest(events: list) -> list:
+        """At most MAX_EVENTS events, the most clearly heard ones, in the order they were heard."""
+        if len(events) <= MAX_EVENTS:
+            return events
+        strength = lambda ev: ev[0][1].get("fine", ev[0][1]["peak"])  # noqa: E731
+        keep = sorted(range(len(events)), key=lambda i: -strength(events[i]))[:MAX_EVENTS]
+        return [events[i] for i in sorted(keep)]
 
     def _fine_peak(self, track: Track, res: dict, W: np.ndarray) -> float:
         i = int(np.nanargmax(res["score"]))

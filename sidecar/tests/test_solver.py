@@ -3,7 +3,7 @@ import time
 import numpy as np
 import pytest
 
-from app import mains, synth
+from app import mains, session, spectro, synth
 from app.adsb import TilePoller, classify, parse_aircraft
 from app.dem import Dem
 from app.doppler import MIC_AGL
@@ -272,6 +272,30 @@ def test_the_session_holds_spectrogram_rows_not_a_recording():
 
     assert s.spec.duration == 120
     assert len(s.spec.audio.data) <= (20 + 5) * FS  # the mains tail plus at most one chunk
+
+
+def test_a_pass_older_than_the_window_still_combines_with_a_later_one(monkeypatch):
+    # A hunt runs until the visitor stops it, so the spectrogram keeps only a window (here 8 min).
+    monkeypatch.setattr(spectro, "HISTORY_S", 480.0)
+    monkeypatch.setattr(session, "FREEZE_AFTER_S", 240.0)
+    s = new_session(cap_s=3600)
+    a = fly(s, "a1", heading=70, t_cpa=T0 + 60, offset_m=1200)
+    b = fly(s, "b2", heading=160, t_cpa=T0 + 540, offset_m=-900, speed=60, alt_m=450)
+    audio = (synth.render(a, listener_point(), T0, 600, snr_db=0, noise_seed=1)
+             + synth.render(b, listener_point(), T0, 600, f0=140, snr_db=0, noise_seed=2))
+    for i in range(0, len(audio), 5 * FS):
+        s.append(audio[i:i + 5 * FS], T0 + i / FS)
+        if (i // (5 * FS)) % 4 == 3:
+            s.tick()
+    s.tick()
+    snap = s.snapshot()
+
+    assert s.spec.specs["low"].frame_times()[0] > T0 + 100  # pass a1's audio is gone
+    assert len(s.spec.specs["high"].rows) <= 480 / spectro.HIGH.frame_s + 1  # memory stays bounded
+    assert [r["summary"]["hex"] for ev in s.frozen for _, r in ev][:1] == ["a1"]
+    assert {h["hex"] for h in snap["heard"]} >= {"a1", "b2"}
+    assert not snap["ambiguous"]
+    assert error_m(s, snap) < 300
 
 
 def test_adsb_records_are_parsed_and_classified():

@@ -25,13 +25,10 @@
       were, and how far off your IP address alone was. No audio, no coordinates, no IP address, no account.</p>
 
     <div class="controls">
-      <label>listen for up to
-        <input type="range" min="1" max="15" value="3" data-hunt-target="cap" data-action="input->hunt#capChanged">
-        <output data-hunt-target="capLabel">3 min</output>
-      </label>
       <button type="button" data-hunt-target="start" data-action="hunt#start">find me</button>
     </div>
-    <p class="muted small">Longer means better odds that a plane passes. We stop early if we're sure.
+    <p class="muted small">We listen until you press stop, or stop early once we're sure. The longer you leave
+      it, the better the odds that a plane passes.
       <a href="<%= results_path %>">How often do we win?</a></p>
   </section>
 
@@ -74,10 +71,9 @@
   </section>
 
   <footer>
-    Method by <a href="https://www.youtube.com/watch?v=UytYrhYLOKI">colsto</a>; solver after
-    <a href="https://github.com/Bodila51/colsto-leak-and-mask">colsto-leak-and-mask</a>. Flight data
-    <a href="https://www.adsb.lol/">adsb.lol</a> (ODbL), elevation Copernicus DEM GLO-90, map &copy; OpenStreetMap
-    contributors, <a href="https://db-ip.com">IP Geolocation by DB-IP</a>. Honest odds: in the public blind tests this method mostly missed, and your microphone is worse
-    than a webcam's. The <a href="<%= results_path %>">results</a> page keeps score.
+    Method by <a href="https://www.youtube.com/watch?v=UytYrhYLOKI">colsto</a>; solver forked from
+    <a href="https://github.com/Bodila51/colsto-leak-and-mask">colsto-leak-and-mask</a>. Flight data taken from
+    <a href="https://www.adsb.lol/">adsb.lol</a> (ODbL), elevation model is Copernicus DEM GLO-90, map &copy; OpenStreetMap
+    , <a href="https://db-ip.com">IP Geolocation by DB-IP</a>.
   </footer>
 </main>

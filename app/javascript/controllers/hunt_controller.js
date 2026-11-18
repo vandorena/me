@@ -10,7 +10,7 @@ const FINAL_POLLS = 8
 // the visitor where they really are.
 export default class extends Controller {
   static targets = [
-    "intro", "cap", "capLabel", "start", "live", "status", "clock", "spectrogram", "overlay", "map",
+    "intro", "start", "live", "status", "clock", "spectrogram", "overlay", "map",
     "aircraft", "mic", "stop", "testFlight", "reveal", "verdict", "pinPrompt", "submitPin", "score", "error"
   ]
   static values = { url: String }
@@ -20,16 +20,11 @@ export default class extends Controller {
     this.queue = []
     this.sending = false
     this.snapshot = null
-    this.capChanged()
   }
 
   disconnect() {
     this.teardown()
     if (this.running) fetch(this.urlValue, { method: "DELETE", headers: this.headers(), keepalive: true })
-  }
-
-  capChanged() {
-    this.capLabelTarget.textContent = `${this.capTarget.value} min`
   }
 
   async start() {
@@ -44,7 +39,7 @@ export default class extends Controller {
     const response = await fetch(this.urlValue, {
       method: "POST",
       headers: { ...this.headers(), "Content-Type": "application/json" },
-      body: JSON.stringify({ cap_s: Number(this.capTarget.value) * 60 })
+      body: JSON.stringify({})
     }).catch(() => null)
     const receivedAt = this.clientNow()
     if (!response?.ok) return this.failStart(response)
@@ -103,8 +98,8 @@ export default class extends Controller {
 
   tick() {
     const elapsed = (this.clientNow() - this.startedAt) / 1000
-    this.clockTarget.textContent = `${clock(elapsed)} / ${clock(this.capS)}`
-    if (elapsed >= this.capS + 1) this.finish()
+    this.clockTarget.textContent = clock(elapsed)
+    if (elapsed >= this.capS + 1) this.finish() // the server's hidden limit, not shown
   }
 
   enqueue(chunk) {
@@ -288,7 +283,8 @@ export default class extends Controller {
 
 function clock(seconds) {
   const s = Math.max(0, Math.floor(seconds))
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
+  const mmss = `${Math.floor(s / 60) % 60}:${String(s % 60).padStart(2, "0")}`
+  return s >= 3600 ? `${Math.floor(s / 3600)}:${mmss.padStart(5, "0")}` : mmss
 }
 
 function km(meters) {

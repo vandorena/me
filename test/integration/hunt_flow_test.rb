@@ -18,19 +18,19 @@ class HuntFlowTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "[data-controller=hunt]"
-    assert_select "input[type=range][data-hunt-target=cap]"
+    assert_select "input[type=range]", count: 0
     assert_select "footer a[href=\"https://db-ip.com\"]", "IP Geolocation by DB-IP"
   end
 
-  test "starting a hunt hands the solver the IP prior and a clamped cap" do
-    post hunt_path, params: { cap_s: 99_999 }, as: :json
+  test "starting a hunt hands the solver the IP prior and the hidden five-hour limit" do
+    post hunt_path, params: { cap_s: 60 }, as: :json
 
     assert_response :success
     body = response.parsed_body
-    assert_equal 900, body["cap_s"]
+    assert_equal 18_000, body["cap_s"]
     assert_equal 30.0, body["prior"]["radius_km"]
     assert body["server_time_ms"].positive?
-    assert_equal [ :start, { lat: 41.8268, lon: -71.4025, radius_km: 30.0, cap_s: 900, country_code: nil } ],
+    assert_equal [ :start, { lat: 41.8268, lon: -71.4025, radius_km: 30.0, cap_s: 18_000, country_code: nil } ],
                  @solver.calls.first
   end
 
