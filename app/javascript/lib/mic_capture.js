@@ -1,6 +1,7 @@
-// Records the microphone with every voice-call "improvement" turned off, resamples it to 8 kHz mono
-// and hands out 5 s chunks stamped with the UTC time of their first sample.
-export const RATE = 8000
+// Records the microphone with every voice-call "improvement" turned off, resamples it to 16 kHz mono
+// (enough for jets' fan tones up to ~7 kHz) and hands out 5 s chunks stamped with the UTC time of their
+// first sample.
+export const RATE = 16000
 export const CHUNK_SAMPLES = 5 * RATE
 
 // Lives in the audio thread: batches 128-frame blocks and stamps each batch with its first frame index.
@@ -99,7 +100,7 @@ export class MicCapture {
     }
   }
 
-  // Plays 8 kHz int16 audio through the speakers starting at a UTC time (dev test flights).
+  // Plays int16 audio through the speakers starting at a UTC time (dev test flights).
   playAt(pcm16, sampleRate, startUtcMs) {
     const buffer = this.ctx.createBuffer(1, pcm16.length, sampleRate)
     const data = buffer.getChannelData(0)

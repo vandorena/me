@@ -1,5 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
-import { MicCapture } from "lib/mic_capture"
+import { MicCapture, RATE } from "lib/mic_capture"
 import { Spectrogram } from "lib/spectrogram"
 import { HuntMap } from "lib/hunt_map"
 
@@ -166,7 +166,7 @@ export default class extends Controller {
     if (!this.running) return
     this.running = false
     clearInterval(this.clock)
-    const sent = this.mic ? this.mic.sent / 8000 : 0
+    const sent = this.mic ? this.mic.sent / RATE : 0
     this.teardown()
     this.stopTarget.disabled = true
     this.testFlightTarget.hidden = true
@@ -260,8 +260,9 @@ export default class extends Controller {
     this.micTarget.textContent = [
       s.device,
       `noise suppression ${flag(s.noiseSuppression)} · echo cancellation ${flag(s.echoCancellation)} · auto gain ${flag(s.autoGainControl)}`,
-      `${s.sampleRate} Hz, resampled to 8000 Hz for the solver`,
-      s.noiseSuppression ? "your browser kept noise suppression on, which can erase the faint hum we need" : ""
+      `${s.sampleRate} Hz, resampled to ${RATE} Hz for the solver`,
+      s.noiseSuppression ? "your browser kept noise suppression on, which can erase the faint hum we need" : "",
+      s.sampleRate < RATE ? "this microphone runs below 16 kHz, so jets' fan tones are out of reach; only propellers count" : ""
     ].filter(Boolean).join("\n")
   }
 

@@ -76,6 +76,16 @@ class HuntFlowTest < ActionDispatch::IntegrationTest
     assert_equal [ :start ], @solver.calls.map(&:first)
   end
 
+  test "a chunk may hold up to 10 s of 16 kHz audio" do
+    post hunt_path, params: { cap_s: 180 }, as: :json
+    headers = { "Content-Type" => "application/octet-stream" }
+
+    post chunk_hunt_path(t0_utc_ms: 1), params: ("\x00" * 2 * 16_000 * 10).b, headers: headers
+    assert_response :success
+    post chunk_hunt_path(t0_utc_ms: 1), params: ("\x00" * (2 * 16_000 * 10 + 2)).b, headers: headers
+    assert_response :unprocessable_content
+  end
+
   test "a chunk without a hunt is gone" do
     post chunk_hunt_path(t0_utc_ms: 1), params: "\x00\x00".b, headers: { "Content-Type" => "application/octet-stream" }
 

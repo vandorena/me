@@ -1,7 +1,7 @@
 """HTTP API for the Rails app. Only Rails talks to this service (internal network plus a shared key).
 
   POST   /sessions                     {lat, lon, radius_km, cap_s, country_code} -> {token}
-  POST   /sessions/{token}/chunk       body: little-endian int16 PCM, 8 kHz mono; ?t0_utc_ms= -> snapshot
+  POST   /sessions/{token}/chunk       body: little-endian int16 PCM, 16 kHz mono; ?t0_utc_ms= -> snapshot
   GET    /sessions/{token}             -> snapshot
   GET    /sessions/{token}/result      -> what Rails needs to score the visitor's pin
   DELETE /sessions/{token}

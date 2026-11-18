@@ -6,7 +6,7 @@
 class HuntsController < ApplicationController
   MIN_CAP_S = 60
   MAX_CAP_S = 900
-  MAX_CHUNK_BYTES = 2 * 8000 * 10
+  MAX_CHUNK_BYTES = 2 * 16_000 * 10 # 10 s of 16 kHz int16
   MIN_RADIUS_KM = 25
 
   # Rails tries the last match first, so the general case goes first.
