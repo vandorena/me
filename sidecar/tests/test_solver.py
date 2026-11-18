@@ -189,6 +189,91 @@ def test_a_tick_stays_within_budget():
     assert time.time() - started < 5.0, s.snapshot()["tick_ms"]
 
 
+def jet(s, hex_code, **kw):
+    args = dict(heading=70, t_cpa=T0 + 50, offset_m=900, speed=75, alt_m=450, kind="jet")
+    return fly(s, hex_code, **{**args, **kw})
+
+
+def test_one_jet_pass_is_heard_in_the_high_band_but_leaves_a_mirror():
+    s = new_session()
+    track = jet(s, "j1")
+    snap = feed(s, synth.render(track, listener_point(), T0, 120, snr_db=0, **synth.JET))
+
+    assert [(a["hex"], a["band"]) for a in snap["heard"]] == [("j1", "high")]
+    assert snap["ambiguous"]
+    assert min(error_m(s, snap), abs(error_m(s, snap) - 1800)) < 300
+
+
+def test_two_jet_passes_find_the_listener():
+    s = new_session()
+    a = jet(s, "j1")
+    b = jet(s, "j2", heading=160, t_cpa=T0 + 130, offset_m=-700, speed=70, alt_m=350)
+    audio = (synth.render(a, listener_point(), T0, 180, snr_db=0, noise_seed=1, **synth.JET)
+             + synth.render(b, listener_point(), T0, 180, snr_db=0, noise_seed=2, **{**synth.JET, "f0": 2100.0}))
+    snap = feed(s, audio)
+
+    assert {h["hex"] for h in snap["heard"]} == {"j1", "j2"}
+    assert not snap["ambiguous"] and snap["done"]
+    assert error_m(s, snap) < 300
+    assert {c["band"] for c in snap["curves"]} == {"high"}
+
+
+def test_a_jet_and_a_prop_combine_across_bands():
+    s = new_session()
+    a = jet(s, "j1")
+    b = fly(s, "p1", heading=160, t_cpa=T0 + 140, offset_m=-900, speed=60, alt_m=450)
+    audio = (synth.render(a, listener_point(), T0, 200, snr_db=0, noise_seed=1, **synth.JET)
+             + synth.render(b, listener_point(), T0, 200, f0=140, snr_db=0, noise_seed=2))
+    snap = feed(s, audio)
+
+    assert {(h["hex"], h["band"]) for h in snap["heard"]} == {("j1", "high"), ("p1", "low")}
+    assert not snap["ambiguous"]
+    assert error_m(s, snap) < 300
+
+
+def test_jet_roar_without_fan_tones_is_not_heard():
+    s = new_session()
+    track = jet(s, "j1")
+    snap = feed(s, synth.render(track, listener_point(), T0, 120, snr_db=0, tones=False, roar_db=10))
+
+    assert snap["heard"] == []
+    assert snap["tier"] == "ip"
+
+
+def test_fan_tones_under_loud_roar_are_still_heard():
+    s = new_session()
+    track = jet(s, "j1")
+    snap = feed(s, synth.render(track, listener_point(), T0, 120, snr_db=-6, **{**synth.JET, "roar_db": 12.0}))
+
+    assert [a["hex"] for a in snap["heard"]] == ["j1"]
+
+
+def test_a_tick_under_busy_jet_traffic_stays_within_budget():
+    s = new_session()
+    a = jet(s, "j1", t_cpa=T0 + 60)
+    for i, h in enumerate((10, 100, 200, 300, 40)):
+        jet(s, f"x{i}", heading=h, t_cpa=T0 + 30 + 20 * i, offset_m=2000 + 400 * i, speed=110, alt_m=900)
+    for i, h in enumerate((130, 230)):
+        fly(s, f"p{i}", heading=h, t_cpa=T0 + 50 + 40 * i, offset_m=3000)
+    audio = synth.render(a, listener_point(), T0, 120, snr_db=0, **synth.JET)
+    for i in range(0, len(audio) - 5 * FS, 5 * FS):
+        s.append(audio[i:i + 5 * FS], T0 + i / FS)
+    started = time.time()
+    s.append(audio[-5 * FS:], T0 + (len(audio) - 5 * FS) / FS)
+    s.tick()
+    assert time.time() - started < 5.0, s.snapshot()["tick_ms"]
+    assert [h["hex"] for h in s.snapshot()["heard"]] == ["j1"]
+
+
+def test_the_session_holds_spectrogram_rows_not_a_recording():
+    s = new_session()
+    rng = np.random.default_rng(9)
+    feed(s, (synth.pink(120 * FS, rng) * 0.01).astype(np.float32), ticks=False)
+
+    assert s.spec.duration == 120
+    assert len(s.spec.audio.data) <= (20 + 5) * FS  # the mains tail plus at most one chunk
+
+
 def test_adsb_records_are_parsed_and_classified():
     ac = {"hex": "A1B2C3", "flight": "N123AB  ", "t": "PC12", "category": "A1", "alt_baro": 3000,
           "alt_geom": 3100, "gs": 200, "track": 90, "lat": 41.9, "lon": -71.5, "seen_pos": 1.5}

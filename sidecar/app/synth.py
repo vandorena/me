@@ -1,6 +1,9 @@
 """Synthetic flyovers with a known answer: an ADS-B-like track that passes a chosen listener, and the audio
 that listener would record (exact emission-time Doppler, 1/r level, a laptop mic's low-frequency roll-off,
-room noise and optional mains hum). Used by the tests and by the dev-only "test flight" mode."""
+room noise and optional mains hum). Used by the tests and by the dev-only "test flight" mode.
+
+A propeller is a low blade-pass tone with harmonics (f0 ~ 80-200 Hz). A jet is a fan-tone stack in the
+kHz range (render(..., **JET)) under broadband roar that swells and fades with the same 1/r envelope."""
 
 from __future__ import annotations
 
@@ -12,6 +15,8 @@ from .adsb import KT, Sample, Tile, Track, hermite
 from .doppler import C_AIR
 from .geo import Frame
 from .spectro import FS
+
+JET = {"f0": 1800.0, "harmonic_amps": (1.0, 0.5, 0.3), "roar_db": 6.0}
 
 
 def straight_flight(frame: Frame, through_xy: tuple[float, float], heading_deg: float, speed_ms: float,
@@ -54,9 +59,11 @@ def track_from_samples(samples: list[Sample], frame: Frame, kind: str = "prop") 
 def render(track: Track, listener: np.ndarray, t_start: float, duration_s: float, f0: float = 110.0,
            harmonic_amps=(1.0, 0.6, 0.35), snr_db: float = 0.0, rolloff_hz: float = 120.0,
            mains_hz: float | None = None, mains_db: float = -20.0, noise_seed: int = 1,
-           level: float = 0.2) -> np.ndarray:
+           level: float = 0.2, roar_db: float | None = None, tones: bool = True) -> np.ndarray:
     """Float32 audio at FS as recorded at `listener` (x, y, z in the track's frame) from UTC `t_start`.
-    `snr_db` is the tone's power at closest approach relative to the broadband noise."""
+    `snr_db` is the tone's power at closest approach relative to the room's broadband noise. `roar_db`
+    adds the aircraft's own broadband noise at that level relative to the tones (a jet's roar);
+    `tones=False` leaves only the roar."""
     n = int(duration_s * FS)
     t_r = t_start + np.arange(n) / FS
     t_e = t_r.copy()
@@ -77,7 +84,10 @@ def render(track: Track, listener: np.ndarray, t_start: float, duration_s: float
     noise = pink(n, rng)
     tone_rms = math.sqrt(sum(a * a for a in harmonic_amps) / 2)
     noise *= tone_rms / (np.std(noise) + 1e-12) * 10 ** (-snr_db / 20)
-    x = tone + noise
+    x = (tone if tones else 0.0) + noise
+    if roar_db is not None:
+        roar = rng.normal(0, 1, n)
+        x += amp * roar / np.std(roar) * tone_rms * 10 ** (roar_db / 20)
     if mains_hz:
         hum = sum(math.exp(-0.3 * (h - 1)) * np.sin(2 * math.pi * mains_hz * h * t_r) for h in range(1, 6))
         x += hum * tone_rms * 10 ** (mains_db / 20) * 3

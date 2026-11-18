@@ -36,7 +36,8 @@ MAX_AGL = 3000.0
 MIN_AUDIO_S = 15.0
 
 # A pass counts as heard only if all of these hold. Tuned on synthetic passes (tests/test_solver.py):
-# a clean pass scores 1.5-3, room noise or jet roar alone stays under ~0.3.
+# a clean pass scores 1.5-3 in either band; room noise alone stays under ~0.3, and a jet's broadband
+# roar without fan tones under ~0.1 (the ridge contrast flattens it). Real jets may need HIGH raised.
 HEARD = {  # band: (min score, min ratio over the reversed audio, min z over the aircraft's own corridor)
     "low": (0.45, 2.0, 4.0),
     "high": (0.45, 2.0, 4.0),
